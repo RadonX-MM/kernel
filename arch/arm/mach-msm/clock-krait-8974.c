@@ -580,8 +580,6 @@ static void krait_update_uv(int *uv, int num, int boost_uv)
 			uv[i] = max(1150000, uv[i]);
 	};
 
-	//boost krait voltage by 50 mV for testing 
-	enable_boost = 1; //qcom patch, CASE ID: 01694672, Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Modify for solve the problem of Kernel NULL pointer
 	if (enable_boost) {
 		for (i = 0; i < num; i++)
 			uv[i] += boost_uv;
@@ -589,10 +587,12 @@ static void krait_update_uv(int *uv, int num, int boost_uv)
 }
 
 #ifdef CONFIG_MSM_CPU_VOLTAGE_CONTROL
-#define CPU_VDD_MAX	1225
-#define CPU_VDD_MIN	650
+#define CPU_VDD_MAX	1450
+#define CPU_VDD_MIN	475
 
 extern int use_for_scaling(unsigned int freq);
+
+static unsigned int cnt;
 
 ssize_t show_UV_mV_table(struct cpufreq_policy *policy,
 			 char *buf)
@@ -625,6 +625,11 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
 	unsigned int num_levels = cpu_clk[cpu]->vdd_class->num_levels;
 	char size_cur[4];
 
+	if (cnt) {
+		cnt = 0;
+		return -EINVAL;
+	}
+
 	for (i = 0; i < num_levels; i++) {
 		if (use_for_scaling(cpu_clk[cpu]->fmax[i] / 1000) < 0)
 			continue;
@@ -642,7 +647,8 @@ ssize_t store_UV_mV_table(struct cpufreq_policy *policy,
 			cpu_clk[j]->vdd_class->vdd_uv[i] = val * 1000;
 
 		ret = sscanf(buf, "%s", size_cur);
-		buf += strlen(size_cur) + 1;
+		cnt = strlen(size_cur);
+		buf += cnt + 1;
 	}
 
 	return count;
@@ -769,8 +775,7 @@ static int clock_krait_8974_driver_probe(struct platform_device *pdev)
 		}
 	}
 
-	//krait_update_uv(uv, rows, pvs ? 25000 : 0);
-	krait_update_uv(uv, rows, pvs ? 50000 : 0);//qcom patch, CASE ID: 01694672, Zhilong.Zhang@OnlineRd.Driver, 2014/09/19, Modify for solve the problem of Kernel NULL pointer
+	krait_update_uv(uv, rows, pvs ? 25000 : 0);
 
 	if (clk_init_vdd_class(dev, &krait0_clk.c, rows, freq, uv, ua))
 		return -ENOMEM;
